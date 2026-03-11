@@ -1,0 +1,4 @@
+venv/
+yolo-service/yolov8m.pt
+yolo-service/yolov8n.pt
+yolo-service/yolov8s.pt

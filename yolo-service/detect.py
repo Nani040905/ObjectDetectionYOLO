@@ -1,28 +1,29 @@
-from flask import Flask, request, jsonify
+from flask import Flask
+from flask_socketio import SocketIO, emit
 from ultralytics import YOLO
 from PIL import Image
+import base64
+import io
 import torch
 
 app = Flask(__name__)
+socketio = SocketIO(app, cors_allowed_origins="*")
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-
-model = YOLO("yolov8m.pt").to(device)
+model = YOLO("yolov8s.pt").to(device)
 
 CONF_THRESHOLD = 0.5
 
-@app.route('/detect', methods=['POST'])
-def detect():
 
-    file = request.files['image']
-    img = Image.open(file)
+@socketio.on("frame")
+def handle_frame(data):
 
-    results = model(
-        img,
-        imgsz=640,
-        device=device,
-        half=True
-    )
+    image_data = data["image"].split(",")[1]
+    img_bytes = base64.b64decode(image_data)
+
+    img = Image.open(io.BytesIO(img_bytes))
+
+    results = model(img, imgsz=640, device=device, half=True)
 
     detections = []
 
@@ -35,17 +36,18 @@ def detect():
                 continue
 
             class_id = int(box.cls)
-            class_name = model.names[class_id]
+            name = model.names[class_id]
 
             x1, y1, x2, y2 = box.xyxy[0].tolist()
 
             detections.append({
-                "name": class_name,
+                "name": name,
                 "confidence": conf,
                 "box": [x1, y1, x2, y2]
             })
 
-    return jsonify(detections)
+    emit("detections", detections)
+
 
 if __name__ == "__main__":
-    app.run(port=5001)
+    socketio.run(app, port=5001)

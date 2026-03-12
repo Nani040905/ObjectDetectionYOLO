@@ -1,33 +1,30 @@
-import { useRef, useState } from "react"
+import { useRef, useEffect } from "react"
 import Webcam from "react-webcam"
-import axios from "axios"
+import { io } from "socket.io-client"
+
+const socket = io("http://localhost:5001")
 
 export default function WebcamDetect() {
 
   const webcamRef = useRef(null)
   const canvasRef = useRef(null)
-  const intervalRef = useRef(null)
 
-  const [running,setRunning] = useState(false)
+  useEffect(() => {
 
-  const captureFrame = async () => {
+    socket.on("detections", drawBoxes)
 
-    if(!webcamRef.current) return
+    return () => socket.off("detections")
+
+  }, [])
+
+
+  const captureFrame = () => {
 
     const imageSrc = webcamRef.current.getScreenshot()
 
-    const blob = await fetch(imageSrc).then(r => r.blob())
-
-    const formData = new FormData()
-    formData.append("image", blob, "frame.jpg")
-
-    const res = await axios.post(
-      "http://localhost:5000/detect",
-      formData
-    )
-
-    drawBoxes(res.data)
+    socket.emit("frame", { image: imageSrc })
   }
+
 
   const drawBoxes = (detections) => {
 
@@ -50,81 +47,37 @@ export default function WebcamDetect() {
 
       ctx.fillStyle = "lime"
       ctx.font = "16px Arial"
-
-      ctx.fillText(
-        `${det.name} ${(det.confidence*100).toFixed(1)}%`,
-        x1,
-        y1-5
-      )
+      ctx.fillText(det.name, x1, y1-5)
 
     })
-  }
-
-  const startDetection = () => {
-
-    if(running) return
-
-    setRunning(true)
-
-    intervalRef.current = setInterval(() => {
-      captureFrame()
-    },1000)
 
   }
-  const clearCanvas = () => {
-	  const canvas = canvasRef.current
-  	const ctx = canvas.getContext("2d")
 
-  	ctx.clearRect(0, 0, canvas.width, canvas.height)
-  }
+  useEffect(() => {
 
-  const stopDetection = () => {
+    const interval = setInterval(captureFrame, 800)
 
-    setRunning(false)
+    return () => clearInterval(interval)
 
-    clearInterval(intervalRef.current)
+  }, [])
 
-		clearCanvas()
-
-
-  }
 
   return (
 
-    <div className="p-6">
+    <div className="relative">
 
-      <div className="space-x-4">
+      <Webcam
+        ref={webcamRef}
+        screenshotFormat="image/jpeg"
+      />
 
-        <button
-          onClick={startDetection}
-          className="bg-green-500 text-white px-4 py-2"
-        >
-          Start Detection
-        </button>
-
-        <button
-          onClick={stopDetection}
-          className="bg-red-500 text-white px-4 py-2"
-        >
-          Stop Detection
-        </button>
-
-      </div>
-
-      <div className="relative mt-6">
-
-        <Webcam
-          ref={webcamRef}
-          screenshotFormat="image/jpeg"
-        />
-
-        <canvas
-          ref={canvasRef}
-          className="absolute top-0 left-0"
-        />
-
-      </div>
+      <canvas
+        ref={canvasRef}
+        className="absolute top-0 left-0"
+      />
 
     </div>
+
   )
+
 }

@@ -1,10 +1,13 @@
 from flask import Flask, request, jsonify
 from ultralytics import YOLO
 from PIL import Image
+import torch
 
 app = Flask(__name__)
 
-model = YOLO("yolov8m.pt")
+device = "cuda" if torch.cuda.is_available() else "cpu"
+
+model = YOLO("yolov8m.pt").to(device)
 
 CONF_THRESHOLD = 0.5
 
@@ -14,7 +17,12 @@ def detect():
     file = request.files['image']
     img = Image.open(file)
 
-    results = model(img, imgsz=640)
+    results = model(
+        img,
+        imgsz=640,
+        device=device,
+        half=True
+    )
 
     detections = []
 

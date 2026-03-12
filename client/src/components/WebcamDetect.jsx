@@ -68,7 +68,7 @@ export default function WebcamDetect() {
 
     intervalRef.current = setInterval(() => {
       captureFrame()
-    },1500)
+    },1000)
 
   }
   const clearCanvas = () => {
